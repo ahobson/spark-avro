@@ -80,8 +80,18 @@ private[avro] class AvroRelation(
    */
   override def prepareJobForWrite(job: Job): OutputWriterFactory = {
     val build = SchemaBuilder.record(recordName).namespace(recordNamespace)
-    val outputAvroSchema = SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
+    val outputAvroSchema = parameters.get("schema") match {
+      case Some(schemaString) => {
+        logInfo("writing Avro using override schema")
+        val parser = new org.apache.avro.Schema.Parser()
+        parser.parse(schemaString)
+      }
+      case _ => {
+        SchemaConverters.convertStructToAvro(dataSchema, build, recordNamespace)
+      }
+    }
     AvroJob.setOutputKeySchema(job, outputAvroSchema)
+
     val AVRO_COMPRESSION_CODEC = "spark.sql.avro.compression.codec"
     val AVRO_DEFLATE_LEVEL = "spark.sql.avro.deflate.level"
     val COMPRESS_KEY = "mapred.output.compress"

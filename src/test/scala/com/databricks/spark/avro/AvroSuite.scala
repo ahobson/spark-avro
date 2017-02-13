@@ -342,8 +342,24 @@ class AvroSuite extends FunSuite with BeforeAndAfterAll {
         Row("Munich", 8, new Timestamp(42), Decimal(3.14), arrayOfByte)))
       val cityDataFrame = sqlContext.createDataFrame(cityRDD, testSchema)
 
+      val recordName = "testRecord"
+      val recordNamespace = "org.apache.avro.testing"
+      val build = org.apache.avro.SchemaBuilder.record(recordName).namespace(recordNamespace)
+      val explicitAvro = SchemaConverters.convertStructToAvro(testSchema, build, recordNamespace)
+      val writeOptions = Map(
+        "recordName" -> recordName,
+        "recordNamespace" -> recordNamespace,
+        "schema" -> explicitAvro.toString()
+      )
+
       val avroDir = tempDir + "/avro"
-      cityDataFrame.write.avro(avroDir)
+      cityDataFrame.write.options(writeOptions).avro(avroDir)
+      val actualSchema = sqlContext.read.avro(avroDir).schema
+      for ( (expected, actual) <- (testSchema.fields zip actualSchema.fields)) {
+        assert(expected.name == actual.name)
+        assert(expected.nullable == actual.nullable)
+      }
+
       assert(sqlContext.read.avro(avroDir).collect().length == 3)
 
       // TimesStamps are converted to longs
